@@ -4,10 +4,9 @@
 	import { Avatar, AvatarFallback } from '$lib/components/ui/avatar';
 	import { onMount, afterUpdate } from 'svelte';
 	import { toast } from 'svelte-sonner';
-	import Account from '$lib/components/account.svelte'
+	import Account from '$lib/components/account.svelte';
 	import { userStore } from '$lib/stores/userStore';
 	import Send from 'lucide-svelte/icons/send';
-
 
 	interface Message {
 		name: string;
@@ -60,7 +59,7 @@
 
 	const sendMessage = async () => {
 		if (!$userStore.isLoggedIn) {
-			error = "You must be logged in to send messages";
+			error = 'You must be logged in to send messages';
 			return;
 		}
 
@@ -82,7 +81,10 @@
 			if (!response.ok) {
 				throw new Error(result.error || 'Failed to send message');
 			}
-			messages = [...messages, { name: $userStore.username, description, timestamp: result.timestamp }];
+			messages = [
+				...messages,
+				{ name: $userStore.username, description, timestamp: result.timestamp }
+			];
 			description = '';
 			autoscroll = true;
 			toast.success('Message sent successfully');
@@ -99,15 +101,11 @@
 </script>
 
 <div class="flex h-screen flex-col">
-	<div class="p-4 flex justify-between items-center">
+	<div class="flex items-center justify-between p-4">
 		<h1 class="text-2xl font-bold">Chat</h1>
 		<Account />
 	</div>
-	<div 
-		bind:this={chatContainer} 
-		on:scroll={handleScroll}
-		class="flex-grow overflow-y-auto p-4"
-	>
+	<div bind:this={chatContainer} on:scroll={handleScroll} class="flex-grow overflow-y-auto p-4">
 		{#each messages as msg}
 			<div class="mb-4 flex items-start">
 				<Avatar class="mr-2">
@@ -135,7 +133,9 @@
 			</div>
 			<div class="flex-grow">
 				<Textarea
-					placeholder={$userStore.isLoggedIn ? "Type your message..." : "Please log in to send messages"}
+					placeholder={$userStore.isLoggedIn
+						? 'Type your message...'
+						: 'Please log in to send messages'}
 					bind:value={description}
 					disabled={!$userStore.isLoggedIn}
 					class="mb-2 max-h-40 min-h-12 w-full"
