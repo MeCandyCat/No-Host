@@ -2,8 +2,8 @@ import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { REST } from '@discordjs/rest';
 import { Routes } from 'discord-api-types/v10';
+import { DISCORD_TOKEN } from '$env/static/private';
 
-const DISCORD_TOKEN = process.env.DISCORD_TOKEN;
 const CHANNEL_ID = '1282357550242857020';
 
 interface ParsedMessage {

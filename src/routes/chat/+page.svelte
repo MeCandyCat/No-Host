@@ -5,8 +5,8 @@
 	import { onMount, afterUpdate } from 'svelte';
 	import { toast } from 'svelte-sonner';
 	import Account from '$lib/components/account.svelte';
-	import { userStore } from '$lib/stores/userStore';
 	import Send from 'lucide-svelte/icons/send';
+	import Cookies from 'js-cookie';
 
 	interface Message {
 		name: string;
@@ -14,17 +14,47 @@
 		timestamp: string;
 	}
 
-	let name = '';
+	interface UserData {
+		isLoggedIn: boolean;
+		username: string;
+		token: string | null;
+	}
+
 	let description = '';
 	let messages: Message[] = [];
 	let error = '';
 	let chatContainer: HTMLDivElement;
 	let autoscroll = true;
+	let userData: UserData = {
+		isLoggedIn: false,
+		username: '',
+		token: null
+	};
 
-	const maxNameLength = 32;
 	const maxDescriptionLength = 1000;
 
+	function loadUserData() {
+		const token = Cookies.get('token');
+		const username = Cookies.get('username');
+		userData = {
+			isLoggedIn: !!token,
+			username: username || '',
+			token: token || null
+		};
+	}
+
+	function saveUserData() {
+		if (userData.isLoggedIn && userData.token) {
+			Cookies.set('token', userData.token, { expires: 7 }); // Expires in 7 days
+			Cookies.set('username', userData.username, { expires: 7 });
+		} else {
+			Cookies.remove('token');
+			Cookies.remove('username');
+		}
+	}
+
 	onMount(async () => {
+		loadUserData();
 		try {
 			const response = await fetch('/api/chat-log');
 			if (!response.ok) {
@@ -54,20 +84,39 @@
 
 	function formatTimestamp(isoString: string): string {
 		const date = new Date(isoString);
-		return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+		const day = String(date.getDate()).padStart(2, '0');
+		const month = String(date.getMonth() + 1).padStart(2, '0');
+		const year = date.getFullYear();
+
+		const time = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
+
+		return `${day}/${month}/${year} ${time}`;
 	}
 
 	const sendMessage = async () => {
-		if (!$userStore.isLoggedIn) {
+		error = '';
+
+		if (!userData.isLoggedIn) {
 			error = 'You must be logged in to send messages';
 			return;
 		}
 
-		if (!description || description.length > maxDescriptionLength) {
-			error = `Description is required and cannot exceed ${maxDescriptionLength} characters`;
+		if (!userData.token) {
+			error = 'Authentication token is missing. Please log in again.';
 			return;
 		}
-		error = '';
+
+		if (!description.trim()) {
+			error = 'Message cannot be empty';
+			return;
+		}
+
+		if (description.length > maxDescriptionLength) {
+			error = `Message cannot exceed ${maxDescriptionLength} characters`;
+			return;
+		}
+
 		const apiUrl = '/api/webhook';
 		try {
 			const response = await fetch(apiUrl, {
@@ -75,7 +124,7 @@
 				headers: {
 					'Content-Type': 'application/json'
 				},
-				body: JSON.stringify({ name: $userStore.username, message: description })
+				body: JSON.stringify({ token: userData.token, message: description })
 			});
 			const result = await response.json();
 			if (!response.ok) {
@@ -83,7 +132,7 @@
 			}
 			messages = [
 				...messages,
-				{ name: $userStore.username, description, timestamp: result.timestamp }
+				{ name: userData.username, description, timestamp: result.timestamp }
 			];
 			description = '';
 			autoscroll = true;
@@ -98,12 +147,30 @@
 		const { scrollTop, clientHeight, scrollHeight } = chatContainer;
 		autoscroll = scrollTop + clientHeight >= scrollHeight - 20;
 	}
+
+	function handleLogin(event: CustomEvent<{ username: string; token: string }>) {
+		userData = {
+			isLoggedIn: true,
+			username: event.detail.username,
+			token: event.detail.token
+		};
+		saveUserData();
+	}
+
+	function handleLogout() {
+		userData = {
+			isLoggedIn: false,
+			username: '',
+			token: null
+		};
+		saveUserData();
+	}
 </script>
 
 <div class="flex h-screen flex-col">
 	<div class="flex items-center justify-between p-4">
 		<h1 class="text-2xl font-bold">Chat</h1>
-		<Account />
+		<Account on:login={handleLogin} on:logout={handleLogout} />
 	</div>
 	<div bind:this={chatContainer} on:scroll={handleScroll} class="flex-grow overflow-y-auto p-4">
 		{#each messages as msg}
@@ -128,16 +195,16 @@
 		<div class="flex flex-col items-start sm:flex-row sm:items-end">
 			<div class="mb-2 mr-2 flex flex-col items-center sm:mb-0">
 				<Avatar class="mb-2">
-					<AvatarFallback>{getInitials($userStore.username)}</AvatarFallback>
+					<AvatarFallback>{getInitials(userData.username)}</AvatarFallback>
 				</Avatar>
 			</div>
 			<div class="flex-grow">
 				<Textarea
-					placeholder={$userStore.isLoggedIn
+					placeholder={userData.isLoggedIn
 						? 'Type your message...'
 						: 'Please log in to send messages'}
 					bind:value={description}
-					disabled={!$userStore.isLoggedIn}
+					disabled={!userData.isLoggedIn}
 					class="mb-2 max-h-40 min-h-12 w-full"
 				/>
 			</div>
@@ -146,7 +213,7 @@
 					size="icon"
 					class="flex items-center justify-center text-center"
 					on:click={sendMessage}
-					disabled={!$userStore.isLoggedIn}
+					disabled={!userData.isLoggedIn}
 				>
 					<Send class="h-4 w-4" />
 				</Button>

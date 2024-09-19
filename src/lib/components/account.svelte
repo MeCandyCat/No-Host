@@ -5,12 +5,26 @@
 	import { Input } from '$lib/components/ui/input';
 	import { Label } from '$lib/components/ui/label';
 	import { toast } from 'svelte-sonner';
-	import { userStore } from '$lib/stores/userStore';
+	import { createEventDispatcher, onMount } from 'svelte';
 	import User from 'lucide-svelte/icons/user';
+	import Cookies from 'js-cookie';
+
+	const dispatch = createEventDispatcher();
 
 	let username = '';
 	let password = '';
 	let isOpen = false;
+	let isLoggedIn = false;
+
+	onMount(() => {
+		const storedUsername = Cookies.get('username');
+		const storedToken = Cookies.get('token');
+		if (storedUsername && storedToken) {
+			isLoggedIn = true;
+			username = storedUsername;
+			dispatch('login', { username, token: storedToken });
+		}
+	});
 
 	async function handleLogin() {
 		try {
@@ -25,7 +39,10 @@
 			const data = await response.json();
 
 			if (response.ok) {
-				userStore.set({ username, isLoggedIn: true });
+				isLoggedIn = true;
+				Cookies.set('username', username, { expires: 30 });
+				Cookies.set('token', data.token, { expires: 30 });
+				dispatch('login', { username, token: data.token });
 				toast.success(data.message);
 				isOpen = false;
 			} else {
@@ -37,14 +54,18 @@
 	}
 
 	function handleLogout() {
-		userStore.set({ username: '', isLoggedIn: false });
+		isLoggedIn = false;
+		username = '';
+		Cookies.remove('username');
+		Cookies.remove('token');
+		dispatch('logout');
 		toast.success('Logged out successfully');
 	}
 </script>
 
 <div class="flex items-center space-x-2">
-	{#if $userStore.isLoggedIn}
-		<span>{$userStore.username}</span>
+	{#if isLoggedIn}
+		<span>{username}</span>
 		<Button on:click={handleLogout}>Logout</Button>
 	{:else}
 		<Dialog.Root bind:open={isOpen}>
